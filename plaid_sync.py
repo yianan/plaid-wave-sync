@@ -542,6 +542,12 @@ def main():
 
     # ── Sync ──────────────────────────────────────────────────────────────────
     created = skipped = errors = 0
+    skip_reasons = {}
+
+    def count_skip(reason):
+        nonlocal skipped
+        skipped += 1
+        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
 
     for acct_cfg in accounts_cfg:
         acct_type = acct_cfg["type"]
@@ -564,7 +570,7 @@ def main():
             txn_id = txn["transaction_id"]
 
             if not name or txn.get("pending"):
-                skipped += 1
+                count_skip("pending_or_empty")
                 continue
 
             name_lower = name.lower()
@@ -572,7 +578,7 @@ def main():
             # The checking side records it as Uncategorized Expense for manual recategorization
             if acct_type == "credit_card" and any(k in name_lower for k in ("automatic payment", "payment - thank", "online payment")):
                 log.debug(f"  SKIP cc-payment (CC side): {name}")
-                skipped += 1
+                count_skip("credit_card_payment")
                 continue
 
             is_expense = amount > 0
@@ -580,7 +586,7 @@ def main():
 
             if skip:
                 log.debug(f"  SKIP: {name}")
-                skipped += 1
+                count_skip("keyword_excluded")
                 continue
 
             if not line_id:
@@ -605,7 +611,7 @@ def main():
                     log.info(f"    📎 Matched invoice #{invoice_matched['number']}")
 
             if args.dry_run:
-                skipped += 1
+                count_skip("dry_run")
                 continue
 
             try:
@@ -625,11 +631,14 @@ def main():
                     created += 1
             except DuplicateError:
                 log.debug(f"    ⊘ duplicate")
-                skipped += 1
+                count_skip("duplicate")
             except Exception as e:
                 log.error(f"    ✗ {e}")
                 errors += 1
 
+    skip_summary = " ".join(f"{reason}={count}" for reason, count in sorted(skip_reasons.items()))
+    if skip_summary:
+        log.info(f"Skipped breakdown: {skip_summary}")
     log.info(f"\n{'='*60}\nDone: created={created} skipped={skipped} errors={errors}\n{'='*60}")
     if errors >= 3:
         sys.exit(1)
