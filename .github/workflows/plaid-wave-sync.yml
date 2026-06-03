@@ -2,7 +2,7 @@ name: Plaid → Wave Sync
 
 on:
   schedule:
-    # Daily at 4:15 pm ET
+    # Daily at 11:45 am ET
     - cron: '45 11 * * *'
       timezone: "America/New_York"
   workflow_dispatch:
